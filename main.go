@@ -18,21 +18,17 @@ var csrftoken string
 
 var csrfTokenReg = regexp.MustCompile(`csrf_token":"([a-zA-Z0-9]+)"`)
 
-var queryIdPattern = regexp.MustCompile(`queryId:".{32}"`)
+var queryIdPattern = regexp.MustCompile(`="([0-9a-zA-Z]{32})"`)
 var requestID string
 var requestIds [][]byte
 
-
 const nextPageURL string = `https://www.instagram.com/graphql/query/?query_hash=%s&variables=%s`
-const userProfilePayload string = `{"user_id":"%s","include_chaining":true,"include_reel":true,"include_suggested_users":false,"include_logged_out_extras":false,"include_highlight_reels":false}`
-
-
-
+const userProfilePayload string = `{"user_id":"%s","include_chaining":true,"include_reel":true}`
+const currProfilePayload string = `{"user_id":"%s"}`
 func main() {
 
 	// create a new collector
 	c := NewColly()
-
 
 	c.OnHTML("html", func(e *colly.HTMLElement) {
 		dat := e.ChildText("body > script:first-of-type")
@@ -88,14 +84,16 @@ func main() {
 
 	e := d.Clone()
 
-
 	e.OnHTML("html", func(element *colly.HTMLElement) {
-		f:=e.Clone()
+		f := e.Clone()
 		f.OnResponse(func(r *colly.Response) {
+			//requestIds = queryIdPattern.FindAll(r.Body, -1)
+			requestIds = queryIdPattern.FindSubmatch(r.Body)
 
-			requestIds = queryIdPattern.FindAll(r.Body, -1)
-			requestID = string(requestIds[len(requestIds)-1][9:41])
-			fmt.Printf("%s\n",requestID)
+			submatch := queryIdPattern.FindAllSubmatch(r.Body, -1)
+			fmt.Printf("%s\n",submatch)
+			requestID = string(requestIds[1])
+			fmt.Printf("%s\n", requestID)
 		})
 
 		scripts := element.ChildAttrs(`link[as="script"]`, "href")
@@ -114,7 +112,7 @@ func main() {
 		}
 
 		requestIDURL := element.Request.AbsoluteURL(ProfilePageContainer)
-
+		fmt.Printf("js file url %s\n", requestIDURL)
 		f.Visit(requestIDURL)
 
 		dat := element.ChildText("body > script:first-of-type")
@@ -125,9 +123,9 @@ func main() {
 			log.Fatal(err)
 		}
 
+		currenUserId := data.EntryData.ProfilePage[0].Graphql.User.Id
 
-		currenUserId:=data.EntryData.ProfilePage[0].Graphql.User.Id
-		userProfileVars := fmt.Sprintf(userProfilePayload, currenUserId)
+		userProfileVars := fmt.Sprintf(currProfilePayload, currenUserId)
 		element.Request.Ctx.Put("variables", userProfileVars)
 		element.Request.Ctx.Put("gis", data.Rhxgis)
 		u := fmt.Sprintf(
@@ -137,10 +135,26 @@ func main() {
 		)
 		element.Request.Visit(u)
 
+		userProfileVars = fmt.Sprintf(userProfilePayload, currenUserId)
+		element.Request.Ctx.Put("variables", userProfileVars)
+		element.Request.Ctx.Put("gis", data.Rhxgis)
+		u = fmt.Sprintf(
+			nextPageURL,
+			requestID,
+			url.QueryEscape(userProfileVars),
+		)
+		element.Request.Visit(u)
+
 	})
-	
+
+	e.OnResponse(func(response *colly.Response) {
+		if strings.Contains(response.Headers.Get("Content-Type"), "application/json") {
+			fmt.Printf("res data -> %s",response.Body)
+		}
+	})
+
 	e.OnRequest(func(r *colly.Request) {
-		log.Printf("request url=%s",r.URL.String())
+		log.Printf("request url=%s", r.URL.String())
 		r.Headers.Set("X-Requested-With", "XMLHttpRequest")
 		//r.Headers.Set("Referrer", "https://www.instagram.com/"+instagramAccount)
 		if r.Ctx.Get("gis") != "" {
@@ -148,8 +162,8 @@ func main() {
 			h := md5.New()
 			h.Write([]byte(gis))
 			gisHash := fmt.Sprintf("%x", h.Sum(nil))
-			log.Printf("set gisHash =%s",gisHash)
-			r.Headers.Set("X-Instagram-GIS", gisHash)
+			log.Printf("set gisHash =%s", gisHash)
+			r.Headers.Set("X-Instagram-gis", gisHash)
 		}
 	})
 
@@ -171,4 +185,3 @@ func NewColly() *colly.Collector {
 	c.SetProxyFunc(rp)
 	return c
 }
-
