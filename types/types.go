@@ -5,8 +5,9 @@ type PageInfo struct {
 	NextPage  bool   `json:"has_next_page"`
 }
 
+
 type MainPageData struct {
-	Config struct{
+	Config struct {
 		CsrfToken string `json:"csrf_token"`
 	} `json:"config"`
 	Rhxgis    string `json:"rhx_gis"`
@@ -14,8 +15,19 @@ type MainPageData struct {
 		ProfilePage []struct {
 			Graphql struct {
 				User struct {
-					Id    string `json:"id"`
-					Media struct {
+					Biography      string `json:"biography"`
+					Id             string `json:"id"` // id
+					EdgeFollowedBy struct {
+						Count int `json:"count"` // 粉丝数
+					} `json:"edge_followed_by"`
+					EdgeFollow struct {
+						Count int `json:"count"`
+					} `json:"edge_follow"`
+					ProfilePicUrlHd      string `json:"profile_pic_url_hd"` // 头像
+					FullName             string `json:"full_name"`
+					Username             string `json:"username"` //用户名
+					BusinessCategoryName string `json:"business_category_name"`
+					Media                struct {
 						Edges []struct {
 							Node struct {
 								ImageURL     string `json:"display_url"`
@@ -55,5 +67,21 @@ type NextPageData struct {
 				} `json:"edges"`
 			} `json:"edge_owner_to_timeline_media"`
 		}
+	} `json:"data"`
+}
+
+type GraphqlResponse struct {
+	Data struct{
+		User struct{
+			EdgeChaining struct{
+				Edges []struct{
+					Node struct{
+						Id string `json:"id"`
+						FullName string `json:"full_name"`
+						Username string `json:"username"`
+					} `json:"node"`
+				} `json:"edges"`
+			} `json:"edge_chaining"`
+		} `json:"user"`
 	} `json:"data"`
 }
